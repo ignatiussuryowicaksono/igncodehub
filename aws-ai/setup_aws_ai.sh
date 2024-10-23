@@ -8,8 +8,8 @@ LOG_FILE="setup.log"
 
 # Repository Information
 REPO_URL="https://github.com/ignatiussuryowicaksono/igncodehub.git"
-CLONE_DIR="amazon-bedrock"
-SCRIPT_TO_RUN="aws-ai/setup_aws_ai.sh"
+CLONE_DIR="igncodehub"
+SCRIPT_TO_RUN="setup_gcp_ai.sh"  # Update this if the script is in a subdirectory within the repo
 
 # Function to log messages to the log file with timestamps and print to terminal
 log() {
@@ -31,7 +31,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 log "Script directory determined as: $SCRIPT_DIR"
 
 # Define the path to the .env file located one directory level above
-ENV_FILE="$SCRIPT_DIR/.env"
+ENV_FILE="$(dirname "$SCRIPT_DIR")/.env"
 log "Looking for .env file at: $ENV_FILE"
 
 # Function to check if Python is installed
