@@ -9,7 +9,7 @@ LOG_FILE="setup.log"
 # Repository Information
 REPO_URL="https://github.com/ignatiussuryowicaksono/igncodehub.git"
 CLONE_DIR="amazon-bedrock"
-SCRIPT_TO_RUN="/aws-ai/setup_aws_ai.sh"  # Corrected path
+SCRIPT_TO_RUN="aws-ai/setup_aws_ai.sh"  # Corrected path
 
 # Function to log messages to the log file with timestamps and print to terminal
 log() {
