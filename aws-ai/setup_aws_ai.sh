@@ -1,13 +1,11 @@
 #!/bin/bash
 
+# Version Script Information
+VERSION="1.0.6"
+
 # Capture the directory where the script was invoked
 EXECUTION_DIR="$(pwd)"
-
-# Define ORIGINAL_DIR as the script's directory
-ORIGINAL_DIR="$(cd "$(dirname "$0")" && pwd)"
-
-# Change to the script's directory to access related scripts and resources
-cd "$ORIGINAL_DIR"
+export EXECUTION_DIR  # Export so child processes can access it
 
 # Define Log File in the Execution Directory
 LOG_FILE="$EXECUTION_DIR/setup.log"
@@ -22,16 +20,9 @@ handle_error() {
   log "ERROR: $1"
 }
 
-# Print Version Information to Terminal
-echo "Running script version: $VERSION"
-log "Running script version: $VERSION"
-
-# Detect if the system is running on Windows or Unix
-OS="$(uname -s 2>/dev/null || echo "Windows")"
-
 # Function to check if Python is installed
 check_python_installed() {
-  case "$OS" in
+  case "$(uname -s 2>/dev/null || echo "Windows")" in
     WINDOWS*|CYGWIN*|MINGW*|MSYS*)
       if command -v python &>/dev/null; then
         PYTHON_CMD="python"
@@ -61,7 +52,7 @@ check_python_installed() {
       fi
       ;;
     *)
-      handle_error "Unsupported OS: $OS."
+      handle_error "Unsupported OS: $(uname -s)."
       return 1
       ;;
   esac
@@ -70,7 +61,7 @@ check_python_installed() {
 # Function to install Python3 and venv on Debian/Ubuntu-based systems
 install_python3_venv() {
   log "Attempting to install python3 and python3-venv..."
-  if [[ "$OS" == "Linux" ]]; then
+  if [[ "$(uname -s)" == "Linux" ]]; then
     sudo apt update >> "$LOG_FILE" 2>&1
     sudo apt install -y python3 python3-venv >> "$LOG_FILE" 2>&1
     if [ $? -eq 0 ]; then
@@ -192,9 +183,10 @@ profile_name="bedrock-serverless"
 configure_aws_profile "$profile_name"
 
 # OS-specific logic
-case "$OS" in
+OS_TYPE="$(uname -s 2>/dev/null || echo "Windows")"
+case "$OS_TYPE" in
   Linux*|Darwin*)
-    log "Detected Unix-like system ($OS)."
+    log "Detected Unix-like system ($OS_TYPE)."
     if ! check_python_installed; then
       install_python3_venv
       # Re-check if Python is installed after installation attempt
@@ -204,7 +196,7 @@ case "$OS" in
     install_aws_cli
     ;;
   CYGWIN*|MINGW*|MSYS*|Windows*)
-    log "Detected Windows system ($OS)."
+    log "Detected Windows system ($OS_TYPE)."
     if ! check_python_installed; then
       install_python_windows
       # Re-check if Python is installed after installation attempt
@@ -212,7 +204,7 @@ case "$OS" in
     fi
     ;;
   *)
-    handle_error "Unsupported OS: $OS."
+    handle_error "Unsupported OS: $OS_TYPE."
     ;;
 esac
 
@@ -221,7 +213,7 @@ if [ -n "$PYTHON_CMD" ]; then
   # Check if virtual environment exists
   if [ -d "my_venv" ]; then
     log "Virtual environment 'my_venv' already exists. Activating it."
-    case "$OS" in
+    case "$OS_TYPE" in
       Linux*|Darwin*)
         source my_venv/bin/activate
         ;;
@@ -231,7 +223,7 @@ if [ -n "$PYTHON_CMD" ]; then
     esac
   else
     # Create and activate the virtual environment
-    case "$OS" in
+    case "$OS_TYPE" in
       Linux*|Darwin*)
         log "Creating Python virtual environment for Unix..."
         "$PYTHON_CMD" -m venv my_venv >> "$LOG_FILE" 2>&1
@@ -275,6 +267,20 @@ else
   handle_error "Some required Python packages are not installed."
 fi
 
+# Ensure bedrock.py is present; if not, download it
+if [ ! -f "bedrock.py" ]; then
+  log "bedrock.py not found. Downloading from repository..."
+  curl -sL "https://raw.githubusercontent.com/GDP-ADMIN/codehub/main/aws-ai/bedrock.py" -o "bedrock.py" >> "$LOG_FILE" 2>&1
+  if [ $? -eq 0 ]; then
+    log "bedrock.py downloaded successfully."
+  else
+    handle_error "Failed to download bedrock.py."
+    exit 1
+  fi
+else
+  log "bedrock.py is already present."
+fi
+
 # Run the bedrock.py script and capture the model response
 if [ -f "bedrock.py" ]; then
   log "Running bedrock.py script..."
@@ -291,7 +297,7 @@ if [ -f "bedrock.py" ]; then
     handle_error "bedrock.py encountered an error during execution."
   fi
 else
-  handle_error "bedrock.py script not found in the script's directory."
+  handle_error "bedrock.py script not found in the execution directory."
 fi
 
 # Deactivate the virtual environment if it's activated
