@@ -8,8 +8,8 @@ LOG_FILE="setup.log"
 
 # Repository Information
 REPO_URL="https://github.com/ignatiussuryowicaksono/igncodehub.git"
-CLONE_DIR="igncodehub"
-SCRIPT_TO_RUN="setup_gcp_ai.sh"  # Update this if the script is in a subdirectory within the repo
+CLONE_DIR="amazon-bedrock"
+SCRIPT_TO_RUN="setup_aws_ai.sh"  # Update this path if the script is within a subdirectory
 
 # Function to log messages to the log file with timestamps and print to terminal
 log() {
@@ -30,8 +30,8 @@ log "Running script version: $VERSION"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 log "Script directory determined as: $SCRIPT_DIR"
 
-# Define the path to the .env file located one directory level above
-ENV_FILE="$(dirname "$SCRIPT_DIR")/.env"
+# Define the path to the .env file located in the same directory
+ENV_FILE="$SCRIPT_DIR/.env"
 log "Looking for .env file at: $ENV_FILE"
 
 # Function to check if Python is installed
@@ -191,7 +191,7 @@ load_env() {
       handle_error "MODEL_ID is not set after loading .env."
     fi
   else
-    handle_error ".env file not found at '$ENV_FILE'. Please ensure it exists one directory level above the script."
+    handle_error ".env file not found at '$ENV_FILE'. Please ensure it exists in the script's directory."
     exit 1
   fi
 }
