@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Version Script Information
-VERSION="1.0.0"
+VERSION="1.0.5"
 
 # Define Log File
 LOG_FILE="setup.log"
@@ -9,7 +9,7 @@ LOG_FILE="setup.log"
 # Repository Information
 REPO_URL="https://github.com/ignatiussuryowicaksono/igncodehub.git"
 CLONE_DIR="amazon-bedrock"
-SCRIPT_TO_RUN="aws-ai/setup_aws_ai.sh"  # Corrected path
+SCRIPT_TO_RUN="aws-ai/bedrock.py"  # Updated to run bedrock.py directly
 
 # Function to log messages to the log file with timestamps and print to terminal
 log() {
@@ -17,7 +17,7 @@ log() {
   echo "$MESSAGE" | tee -a "$LOG_FILE"
 }
 
-# Function to handle non-critical errors by logging them and printing to terminal
+# Function to handle errors by logging them and printing to terminal
 handle_error() {
   log "ERROR: $1" >&2
 }
@@ -88,11 +88,36 @@ install_python3_venv() {
   fi
 }
 
-# Function to install Python3 on Windows (Placeholder)
+# Function to install Python3 on Unix-based systems (if not already installed)
+install_python_unix() {
+  log "Python not found. Installing Python on Unix-like system..."
+  curl -O https://raw.githubusercontent.com/GDP-ADMIN/codehub/refs/heads/main/devsecops/install_python.sh >> "$LOG_FILE" 2>&1
+  if [ $? -ne 0 ]; then
+    handle_error "Failed to download install_python.sh."
+    exit 1
+  fi
+  chmod +x install_python.sh
+  ./install_python.sh >> "$LOG_FILE" 2>&1
+  if [ $? -ne 0 ]; then
+    handle_error "Failed to execute install_python.sh."
+    exit 1
+  fi
+}
+
+# Function to install Python on Windows
 install_python_windows() {
-  log "Python installation on Windows is not automated in this script."
-  log "Please install Python manually from https://www.python.org/downloads/"
-  # You can add automation steps here if needed
+  log "Python not found. Installing Python on Windows system..."
+  powershell -Command "Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force" >> "$LOG_FILE" 2>&1
+  powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/GDP-ADMIN/codehub/refs/heads/main/devsecops/install_python.ps1' -OutFile 'install_python.ps1'" >> "$LOG_FILE" 2>&1
+  if [ $? -ne 0 ]; then
+    handle_error "Failed to download install_python.ps1."
+    exit 1
+  fi
+  powershell -File install_python.ps1 >> "$LOG_FILE" 2>&1
+  if [ $? -ne 0 ]; then
+    handle_error "Failed to execute install_python.ps1."
+    exit 1
+  fi
 }
 
 # Function to install AWS CLI if not already installed
@@ -138,18 +163,20 @@ clone_repository() {
   fi
 }
 
-# Function to run a script from the cloned repository
-run_cloned_script() {
+# Function to run bedrock.py from the cloned repository
+run_bedrock_script() {
   local SCRIPT_PATH="$SCRIPT_DIR/$CLONE_DIR/$SCRIPT_TO_RUN"
 
   if [ -f "$SCRIPT_PATH" ]; then
     log "Executing script: $SCRIPT_PATH"
     chmod +x "$SCRIPT_PATH"
     bash "$SCRIPT_PATH" >> "$LOG_FILE" 2>&1
-    if [ $? -eq 0 ]; then
+    local exit_code=$?
+    if [ $exit_code -eq 0 ]; then
       log "Script '$SCRIPT_TO_RUN' executed successfully."
     else
-      handle_error "Script '$SCRIPT_TO_RUN' encountered an error during execution."
+      handle_error "Script '$SCRIPT_TO_RUN' encountered an error during execution. Exit code: $exit_code"
+      exit 1
     fi
   else
     handle_error "Script '$SCRIPT_PATH' not found."
@@ -242,19 +269,19 @@ configure_aws_profile "$profile_name"
 # Clone the repository
 clone_repository
 
-# Run the script from the cloned repository
-run_cloned_script
+# Run the bedrock.py script from the cloned repository
+run_bedrock_script
 
 # Detect if the system is running on Windows or Unix
 OS="$(uname -s 2>/dev/null || echo "Windows")"
 log "Detected OS: $OS"
 
-# OS-specific logic
+# OS-specific logic for Python environment
 case "$OS" in
   Linux*|Darwin*)
     log "Detected Unix-like system ($OS)."
     if ! check_python_installed; then
-      install_python3_venv
+      install_python_unix
       # Re-check if Python is installed after installation attempt
       check_python_installed
     fi
@@ -336,10 +363,10 @@ fi
 # Run the bedrock.py script and capture the model response
 if [ -f "bedrock.py" ]; then
   log "Running bedrock.py script..."
-  
+
   # Execute bedrock.py, capture stdout (model response), and log all errors
   MODEL_RESPONSE=$("$PYTHON_CMD" bedrock.py 2>> "$LOG_FILE")
-  
+
   # Check if the Python script executed successfully
   if [ $? -eq 0 ]; then
     # Print the model response to the terminal
