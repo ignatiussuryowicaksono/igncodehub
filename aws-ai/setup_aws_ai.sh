@@ -1,38 +1,33 @@
 #!/bin/bash
 
-# Version Script Information
-VERSION="1.0.5"
+# Capture the directory where the script was invoked
+EXECUTION_DIR="$(pwd)"
 
-# Define Log File
-LOG_FILE="setup.log"
+# Define ORIGINAL_DIR as the script's directory
+ORIGINAL_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Repository Information
-REPO_URL="https://github.com/ignatiussuryowicaksono/igncodehub.git"
-CLONE_DIR="amazon-bedrock"
-SCRIPT_TO_RUN="aws-ai/bedrock.py"  # Updated to run bedrock.py directly
+# Change to the script's directory to access related scripts and resources
+cd "$ORIGINAL_DIR"
 
-# Function to log messages to the log file with timestamps and print to terminal
+# Define Log File in the Execution Directory
+LOG_FILE="$EXECUTION_DIR/setup.log"
+
+# Function to log messages to the log file with timestamps
 log() {
-  local MESSAGE="$(date +"%Y-%m-%d %H:%M:%S") : $1"
-  echo "$MESSAGE" | tee -a "$LOG_FILE"
+  echo "$(date +"%Y-%m-%d %H:%M:%S") : $1" >> "$LOG_FILE"
 }
 
-# Function to handle errors by logging them and printing to terminal
+# Function to handle non-critical errors by logging them
 handle_error() {
-  log "ERROR: $1" >&2
+  log "ERROR: $1"
 }
 
 # Print Version Information to Terminal
 echo "Running script version: $VERSION"
 log "Running script version: $VERSION"
 
-# Determine the directory where the script resides
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-log "Script directory determined as: $SCRIPT_DIR"
-
-# Define the path to the .env file located in the same directory
-ENV_FILE="$SCRIPT_DIR/.env"
-log "Looking for .env file at: $ENV_FILE"
+# Detect if the system is running on Windows or Unix
+OS="$(uname -s 2>/dev/null || echo "Windows")"
 
 # Function to check if Python is installed
 check_python_installed() {
@@ -88,43 +83,18 @@ install_python3_venv() {
   fi
 }
 
-# Function to install Python3 on Unix-based systems (if not already installed)
-install_python_unix() {
-  log "Python not found. Installing Python on Unix-like system..."
-  curl -O https://raw.githubusercontent.com/GDP-ADMIN/codehub/refs/heads/main/devsecops/install_python.sh >> "$LOG_FILE" 2>&1
-  if [ $? -ne 0 ]; then
-    handle_error "Failed to download install_python.sh."
-    exit 1
-  fi
-  chmod +x install_python.sh
-  ./install_python.sh >> "$LOG_FILE" 2>&1
-  if [ $? -ne 0 ]; then
-    handle_error "Failed to execute install_python.sh."
-    exit 1
-  fi
-}
-
-# Function to install Python on Windows
+# Function to install Python3 on Windows (Placeholder)
 install_python_windows() {
-  log "Python not found. Installing Python on Windows system..."
-  powershell -Command "Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force" >> "$LOG_FILE" 2>&1
-  powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/GDP-ADMIN/codehub/refs/heads/main/devsecops/install_python.ps1' -OutFile 'install_python.ps1'" >> "$LOG_FILE" 2>&1
-  if [ $? -ne 0 ]; then
-    handle_error "Failed to download install_python.ps1."
-    exit 1
-  fi
-  powershell -File install_python.ps1 >> "$LOG_FILE" 2>&1
-  if [ $? -ne 0 ]; then
-    handle_error "Failed to execute install_python.ps1."
-    exit 1
-  fi
+  log "Python installation on Windows is not automated in this script."
+  log "Please install Python manually from https://www.python.org/downloads/"
+  # You can add automation steps here if needed
 }
 
 # Function to install AWS CLI if not already installed
 install_aws_cli() {
   if ! command -v aws &>/dev/null; then
     log "AWS CLI not found. Installing AWS CLI..."
-    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" >> "$LOG_FILE" 2>&1
+    curl -sL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" >> "$LOG_FILE" 2>&1
     if [ $? -ne 0 ]; then
       handle_error "Failed to download AWS CLI."
       return 1
@@ -147,81 +117,46 @@ install_aws_cli() {
   fi
 }
 
-# Function to clone the repository
-clone_repository() {
-  if [ -d "$CLONE_DIR" ]; then
-    log "Repository directory '$CLONE_DIR' already exists. Skipping clone."
+# Load environment variables from the .env file in the Execution Directory
+if [ -f "$EXECUTION_DIR/.env" ]; then
+  # Use 'export' and 'source' to load the .env file
+  set -a
+  source "$EXECUTION_DIR/.env"
+  set +a
+  log ".env file loaded successfully."
+
+  # Debugging: Check if variables are set (without printing sensitive information)
+  if [ -n "$AWS_ACCESS_KEY_ID" ]; then
+    log "AWS_ACCESS_KEY_ID is set."
   else
-    log "Cloning repository from $REPO_URL..."
-    git clone "$REPO_URL" "$CLONE_DIR" >> "$LOG_FILE" 2>&1
-    if [ $? -eq 0 ]; then
-      log "Repository cloned successfully into '$CLONE_DIR'."
-    else
-      handle_error "Failed to clone repository from $REPO_URL."
-      exit 1
-    fi
+    handle_error "AWS_ACCESS_KEY_ID is not set after loading .env."
   fi
-}
 
-# Function to run bedrock.py from the cloned repository
-run_bedrock_script() {
-  local SCRIPT_PATH="$SCRIPT_DIR/$CLONE_DIR/$SCRIPT_TO_RUN"
-
-  if [ -f "$SCRIPT_PATH" ]; then
-    log "Executing script: $SCRIPT_PATH"
-    chmod +x "$SCRIPT_PATH"
-    bash "$SCRIPT_PATH" >> "$LOG_FILE" 2>&1
-    local exit_code=$?
-    if [ $exit_code -eq 0 ]; then
-      log "Script '$SCRIPT_TO_RUN' executed successfully."
-    else
-      handle_error "Script '$SCRIPT_TO_RUN' encountered an error during execution. Exit code: $exit_code"
-      exit 1
-    fi
+  if [ -n "$AWS_SECRET_ACCESS_KEY" ]; then
+    log "AWS_SECRET_ACCESS_KEY is set."
   else
-    handle_error "Script '$SCRIPT_PATH' not found."
-    exit 1
+    handle_error "AWS_SECRET_ACCESS_KEY is not set after loading .env."
   fi
-}
 
-# Function to load environment variables from the .env file
-load_env() {
-  if [ -f "$ENV_FILE" ]; then
-    # Use 'export' and 'source' to load the .env file
-    set -a
-    source "$ENV_FILE"
-    set +a
-    log ".env file loaded successfully from '$ENV_FILE'."
-
-    # Debugging: Check if variables are set (without printing sensitive information)
-    if [ -n "$AWS_ACCESS_KEY_ID" ]; then
-      log "AWS_ACCESS_KEY_ID is set."
-    else
-      handle_error "AWS_ACCESS_KEY_ID is not set after loading .env."
-    fi
-
-    if [ -n "$AWS_SECRET_ACCESS_KEY" ]; then
-      log "AWS_SECRET_ACCESS_KEY is set."
-    else
-      handle_error "AWS_SECRET_ACCESS_KEY is not set after loading .env."
-    fi
-
-    if [ -n "$AWS_REGION" ]; then
-      log "AWS_REGION is set to '$AWS_REGION'."
-    else
-      handle_error "AWS_REGION is not set after loading .env."
-    fi
-
-    if [ -n "$MODEL_ID" ]; then
-      log "MODEL_ID is set to '$MODEL_ID'."
-    else
-      handle_error "MODEL_ID is not set after loading .env."
-    fi
+  if [ -n "$AWS_REGION" ]; then
+    log "AWS_REGION is set to '$AWS_REGION'."
   else
-    handle_error ".env file not found at '$ENV_FILE'. Please ensure it exists in the script's directory."
-    exit 1
+    handle_error "AWS_REGION is not set after loading .env."
   fi
-}
+
+  if [ -n "$MODEL_ID" ]; then
+    log "MODEL_ID is set to '$MODEL_ID'."
+  else
+    handle_error "MODEL_ID is not set after loading .env."
+  fi
+else
+  handle_error ".env file not found in '$EXECUTION_DIR'. Please ensure it exists in the directory where you run the script."
+fi
+
+# Ensure that AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION are set
+if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] || [ -z "$AWS_REGION" ]; then
+  handle_error "AWS credentials or region not found in the .env file. Please check the .env file."
+fi
 
 # Function to configure AWS CLI profile and export AWS_PROFILE environment variable
 configure_aws_profile() {
@@ -254,34 +189,14 @@ configure_aws_profile() {
 # Store AWS profile info (profile name)
 profile_name="bedrock-serverless"
 
-# Load environment variables from the .env file
-load_env
-
-# Ensure that AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_REGION are set
-if [ -z "$AWS_ACCESS_KEY_ID" ] || [ -z "$AWS_SECRET_ACCESS_KEY" ] || [ -z "$AWS_REGION" ]; then
-  handle_error "AWS credentials or region not found in the .env file. Please check the .env file."
-  exit 1
-fi
-
-# Configure AWS CLI profile
 configure_aws_profile "$profile_name"
 
-# Clone the repository
-clone_repository
-
-# Run the bedrock.py script from the cloned repository
-run_bedrock_script
-
-# Detect if the system is running on Windows or Unix
-OS="$(uname -s 2>/dev/null || echo "Windows")"
-log "Detected OS: $OS"
-
-# OS-specific logic for Python environment
+# OS-specific logic
 case "$OS" in
   Linux*|Darwin*)
     log "Detected Unix-like system ($OS)."
     if ! check_python_installed; then
-      install_python_unix
+      install_python3_venv
       # Re-check if Python is installed after installation attempt
       check_python_installed
     fi
@@ -376,7 +291,7 @@ if [ -f "bedrock.py" ]; then
     handle_error "bedrock.py encountered an error during execution."
   fi
 else
-  handle_error "bedrock.py script not found in the current directory."
+  handle_error "bedrock.py script not found in the script's directory."
 fi
 
 # Deactivate the virtual environment if it's activated
@@ -389,8 +304,8 @@ fi
 
 # Print completion messages to the terminal
 echo "AWS environment setup and bedrock.py script execution complete."
-echo "Check 'setup.log' for detailed logs."
+echo "Check 'setup.log' in '$EXECUTION_DIR' for detailed logs."
 
 # Log completion messages
 log "AWS environment setup and bedrock.py script execution complete."
-log "Check 'setup.log' for detailed logs."
+log "Check 'setup.log' in '$EXECUTION_DIR' for detailed logs."
