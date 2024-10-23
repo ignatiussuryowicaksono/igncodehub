@@ -20,7 +20,7 @@ def main():
         if os.path.isfile(dotenv_path):
             # Load environment variables from the .env file in EXECUTION_DIR
             load_dotenv(dotenv_path)
-            # Log the message instead of printing to stdout
+            # Log the message to file
             log_to_file(f"Loaded .env from {dotenv_path}", log_file)
         else:
             error_message = f"ERROR: .env file not found at {dotenv_path}."
@@ -80,25 +80,35 @@ def main():
         generation = response_body.get("generation", {})
 
         if generation:
-            # Format and log the prompt and response instead of printing
+            # Format and print the prompt and response to the terminal
             formatted_prompt = f"Prompt: {prompt_text}"
             formatted_response = f"Response: {pprint.pformat(generation)}"
+            
+            # Print to terminal
+            print(formatted_prompt)
+            print(formatted_response)
+            
+            # Also log the prompt and response to file
             log_to_file(formatted_prompt, log_file)
             log_to_file(formatted_response, log_file)
         else:
             error_message = "No generation found in the response."
+            print(error_message)
             log_to_file(error_message, log_file)
 
     except boto3.exceptions.Boto3Error as e:
         error_message = f"An error occurred while invoking the model: {e}"
+        print(error_message)
         log_to_file(error_message, log_file)
         sys.exit(1)
     except json.JSONDecodeError:
         error_message = "Failed to decode the response body as JSON."
+        print(error_message)
         log_to_file(error_message, log_file)
         sys.exit(1)
     except Exception as e:
         error_message = f"An unexpected error occurred: {e}"
+        print(error_message)
         log_to_file(error_message, log_file)
         sys.exit(1)
 
