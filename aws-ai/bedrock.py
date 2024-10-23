@@ -14,6 +14,7 @@ def main():
         if os.path.isfile(dotenv_path):
             # Load environment variables from the .env file in EXECUTION_DIR
             load_dotenv(dotenv_path)
+            # Optional: Print a confirmation message to the log file via stdout (captured by bash)
             print(f"Loaded .env from {dotenv_path}")
         else:
             print(f"ERROR: .env file not found at {dotenv_path}.", file=sys.stderr)
