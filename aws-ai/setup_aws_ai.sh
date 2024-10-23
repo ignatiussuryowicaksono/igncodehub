@@ -31,7 +31,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 log "Script directory determined as: $SCRIPT_DIR"
 
 # Define the path to the .env file located one directory level above
-ENV_FILE="$SCRIPT_DIR/../.env"
+ENV_FILE="$SCRIPT_DIR/.env"
 log "Looking for .env file at: $ENV_FILE"
 
 # Function to check if Python is installed
