@@ -6,8 +6,27 @@ import sys
 from dotenv import load_dotenv
 
 def main():
-    # Load environment variables from .env file
-    load_dotenv()
+    # Retrieve EXECUTION_DIR from environment variables
+    execution_dir = os.getenv('EXECUTION_DIR')
+
+    if execution_dir:
+        dotenv_path = os.path.join(execution_dir, '.env')
+        if os.path.isfile(dotenv_path):
+            # Load environment variables from the .env file in EXECUTION_DIR
+            load_dotenv(dotenv_path)
+            print(f"Loaded .env from {dotenv_path}")
+        else:
+            print(f"ERROR: .env file not found at {dotenv_path}.", file=sys.stderr)
+            sys.exit(1)
+    else:
+        # Fallback: Attempt to load .env from the current directory
+        dotenv_path = '.env'
+        if os.path.isfile(dotenv_path):
+            load_dotenv(dotenv_path)
+            print(f"Loaded .env from current directory: {dotenv_path}")
+        else:
+            print("ERROR: EXECUTION_DIR not set and .env file not found in the current directory.", file=sys.stderr)
+            sys.exit(1)
 
     # Retrieve variables from environment
     region = os.getenv('AWS_REGION')
