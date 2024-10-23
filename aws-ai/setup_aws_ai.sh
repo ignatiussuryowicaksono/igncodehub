@@ -22,7 +22,8 @@ handle_error() {
 
 # Function to check if Python is installed
 check_python_installed() {
-  case "$(uname -s 2>/dev/null || echo "Windows")" in
+  OS_TYPE="$(uname -s 2>/dev/null || echo "Windows")"
+  case "$OS_TYPE" in
     WINDOWS*|CYGWIN*|MINGW*|MSYS*)
       if command -v python &>/dev/null; then
         PYTHON_CMD="python"
@@ -52,7 +53,7 @@ check_python_installed() {
       fi
       ;;
     *)
-      handle_error "Unsupported OS: $(uname -s)."
+      handle_error "Unsupported OS: $OS_TYPE."
       return 1
       ;;
   esac
@@ -270,7 +271,7 @@ fi
 # Ensure bedrock.py is present; if not, download it
 if [ ! -f "bedrock.py" ]; then
   log "bedrock.py not found. Downloading from repository..."
-  curl -sL "https://raw.githubusercontent.com/GDP-ADMIN/codehub/main/aws-ai/bedrock.py" -o "bedrock.py" >> "$LOG_FILE" 2>&1
+  curl -sL "https://raw.githubusercontent.com/ignatiussuryowicaksono/igncodehub/main/aws-ai/bedrock.py" -o "bedrock.py" >> "$LOG_FILE" 2>&1
   if [ $? -eq 0 ]; then
     log "bedrock.py downloaded successfully."
   else
