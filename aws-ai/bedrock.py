@@ -5,28 +5,36 @@ import os
 import sys
 from dotenv import load_dotenv
 
+def log_to_file(message, log_file_path="setup.log"):
+    """Log messages to a specified log file."""
+    with open(log_file_path, "a") as log_file:
+        log_file.write(f"{message}\n")
+
 def main():
     # Retrieve EXECUTION_DIR from environment variables
     execution_dir = os.getenv('EXECUTION_DIR')
+    log_file = os.path.join(execution_dir, "setup.log") if execution_dir else "setup.log"
 
     if execution_dir:
         dotenv_path = os.path.join(execution_dir, '.env')
         if os.path.isfile(dotenv_path):
             # Load environment variables from the .env file in EXECUTION_DIR
             load_dotenv(dotenv_path)
-            # Optional: Print a confirmation message to the log file via stdout (captured by bash)
-            print(f"Loaded .env from {dotenv_path}")
+            # Log the message instead of printing to stdout
+            log_to_file(f"Loaded .env from {dotenv_path}", log_file)
         else:
-            print(f"ERROR: .env file not found at {dotenv_path}.", file=sys.stderr)
+            error_message = f"ERROR: .env file not found at {dotenv_path}."
+            log_to_file(error_message, log_file)
             sys.exit(1)
     else:
         # Fallback: Attempt to load .env from the current directory
         dotenv_path = '.env'
         if os.path.isfile(dotenv_path):
             load_dotenv(dotenv_path)
-            print(f"Loaded .env from current directory: {dotenv_path}")
+            log_to_file(f"Loaded .env from current directory: {dotenv_path}", log_file)
         else:
-            print("ERROR: EXECUTION_DIR not set and .env file not found in the current directory.", file=sys.stderr)
+            error_message = "ERROR: EXECUTION_DIR not set and .env file not found in the current directory."
+            log_to_file(error_message, log_file)
             sys.exit(1)
 
     # Retrieve variables from environment
@@ -34,11 +42,16 @@ def main():
     model_id = os.getenv('MODEL_ID')
 
     if not region:
-        print("ERROR: AWS_REGION not found in the environment variables.", file=sys.stderr)
+        error_message = "ERROR: AWS_REGION not found in the environment variables."
+        log_to_file(error_message, log_file)
         sys.exit(1)
     if not model_id:
-        print("ERROR: MODEL_ID not found in the environment variables.", file=sys.stderr)
+        error_message = "ERROR: MODEL_ID not found in the environment variables."
+        log_to_file(error_message, log_file)
         sys.exit(1)
+
+    # Define the prompt
+    prompt_text = "Which country won the 2022 World Cup?"
 
     try:
         # Initialize the Bedrock runtime client
@@ -46,7 +59,7 @@ def main():
 
         # Define the configuration for the Llama model
         llama_config = json.dumps({
-            "prompt": "Which country won the 2022 World Cup?",
+            "prompt": prompt_text,
             "max_gen_len": 512,
             "temperature": 0,
             "top_p": 0.9,
@@ -67,20 +80,26 @@ def main():
         generation = response_body.get("generation", {})
 
         if generation:
-            # Pretty-print the generation result to stdout
-            pp = pprint.PrettyPrinter(indent=4)
-            print(pp.pformat(generation))
+            # Format and log the prompt and response instead of printing
+            formatted_prompt = f"Prompt: {prompt_text}"
+            formatted_response = f"Response: {pprint.pformat(generation)}"
+            log_to_file(formatted_prompt, log_file)
+            log_to_file(formatted_response, log_file)
         else:
-            print("No generation found in the response.", file=sys.stderr)
+            error_message = "No generation found in the response."
+            log_to_file(error_message, log_file)
 
     except boto3.exceptions.Boto3Error as e:
-        print(f"An error occurred while invoking the model: {e}", file=sys.stderr)
+        error_message = f"An error occurred while invoking the model: {e}"
+        log_to_file(error_message, log_file)
         sys.exit(1)
     except json.JSONDecodeError:
-        print("Failed to decode the response body as JSON.", file=sys.stderr)
+        error_message = "Failed to decode the response body as JSON."
+        log_to_file(error_message, log_file)
         sys.exit(1)
     except Exception as e:
-        print(f"An unexpected error occurred: {e}", file=sys.stderr)
+        error_message = f"An unexpected error occurred: {e}"
+        log_to_file(error_message, log_file)
         sys.exit(1)
 
 if __name__ == "__main__":
