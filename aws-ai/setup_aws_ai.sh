@@ -9,7 +9,7 @@ LOG_FILE="setup.log"
 # Repository Information
 REPO_URL="https://github.com/ignatiussuryowicaksono/igncodehub.git"
 CLONE_DIR="amazon-bedrock"
-SCRIPT_TO_RUN="aws-ai/setup_aws_ai.sh"  # Update this path if the script is within a subdirectory
+SCRIPT_TO_RUN="amazon-bedrock/aws-ai/setup_aws_ai.sh"  # Corrected path
 
 # Function to log messages to the log file with timestamps and print to terminal
 log() {
@@ -140,7 +140,7 @@ clone_repository() {
 
 # Function to run a script from the cloned repository
 run_cloned_script() {
-  local SCRIPT_PATH="$CLONE_DIR/$SCRIPT_TO_RUN"
+  local SCRIPT_PATH="$SCRIPT_DIR/$CLONE_DIR/$SCRIPT_TO_RUN"
 
   if [ -f "$SCRIPT_PATH" ]; then
     log "Executing script: $SCRIPT_PATH"
