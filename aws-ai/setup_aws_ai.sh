@@ -10,17 +10,18 @@ export EXECUTION_DIR  # Export so child processes can access it
 # Define Log File in the Execution Directory
 LOG_FILE="$EXECUTION_DIR/setup.log"
 
-# Redirect all stdout and stderr to the log file
-exec > "$LOG_FILE" 2>&1
+# Initialize the log file
+touch "$LOG_FILE" || { echo "Failed to create log file at $LOG_FILE"; exit 1; }
 
 # Function to log messages to the log file with timestamps
 log() {
-  echo "$(date +"%Y-%m-%d %H:%M:%S") : [$1] $2"
+  echo "$(date +"%Y-%m-%d %H:%M:%S") : [$1] $2" >> "$LOG_FILE"
 }
 
 # Function to handle errors by logging and exiting if critical
 handle_error() {
   log "ERROR" "$1"
+  echo "ERROR: $1" >&2
   exit 1
 }
 
@@ -75,11 +76,11 @@ check_python_installed() {
 install_python3_venv() {
   log "INFO" "Attempting to install python3 and python3-venv..."
   if [[ "$(uname -s)" == "Linux" ]]; then
-    sudo apt update
+    sudo apt update >> "$LOG_FILE" 2>&1
     if [ $? -ne 0 ]; then
       handle_error "Failed to update package lists."
     fi
-    sudo apt install -y python3 python3-venv
+    sudo apt install -y python3 python3-venv >> "$LOG_FILE" 2>&1
     if [ $? -eq 0 ]; then
       log "INFO" "Successfully installed python3 and python3-venv."
     else
@@ -95,20 +96,20 @@ install_python_windows() {
   log "INFO" "Python not found. Installing Python on Windows system..."
 
   # Set Execution Policy to allow script execution
-  powershell -Command "Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force"
+  powershell -Command "Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force" >> "$LOG_FILE" 2>&1
   if [ $? -ne 0 ]; then
     handle_error "Failed to set PowerShell execution policy."
   fi
 
   # Download the PowerShell installer script
-  powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/GDP-ADMIN/codehub/refs/heads/main/devsecops/install_python.ps1' -OutFile 'install_python.ps1'"
+  powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/GDP-ADMIN/codehub/refs/heads/main/devsecops/install_python.ps1' -OutFile 'install_python.ps1'" >> "$LOG_FILE" 2>&1
   if [ $? -ne 0 ]; then
     handle_error "Failed to download install_python.ps1."
   fi
   log "INFO" "install_python.ps1 downloaded successfully."
 
   # Execute the installer script
-  powershell -File install_python.ps1
+  powershell -File install_python.ps1 >> "$LOG_FILE" 2>&1
   if [ $? -eq 0 ]; then
     log "INFO" "Python installed successfully via PowerShell."
     rm -f install_python.ps1
@@ -177,20 +178,20 @@ install_aws_cli() {
         AWS_CLI_INSTALLER_ZIP="awscliv2.zip"
 
         # Download AWS CLI installer
-        curl -sL "$AWS_CLI_INSTALLER_URL" -o "$AWS_CLI_INSTALLER_ZIP"
+        curl -sL "$AWS_CLI_INSTALLER_URL" -o "$AWS_CLI_INSTALLER_ZIP" >> "$LOG_FILE" 2>&1
         if [ $? -ne 0 ]; then
           handle_error "Failed to download AWS CLI."
         fi
         log "INFO" "AWS CLI installer downloaded successfully."
 
         # Unzip the installer
-        unzip "$AWS_CLI_INSTALLER_ZIP"
+        unzip "$AWS_CLI_INSTALLER_ZIP" >> "$LOG_FILE" 2>&1
         if [ $? -ne 0 ]; then
           handle_error "Failed to unzip AWS CLI installer."
         fi
 
         # Install AWS CLI
-        sudo ./aws/install
+        sudo ./aws/install >> "$LOG_FILE" 2>&1
         if [ $? -eq 0 ]; then
           log "INFO" "AWS CLI installed successfully."
         else
@@ -232,11 +233,11 @@ install_unzip() {
     OS_TYPE="$(uname -s 2>/dev/null || echo "Windows")"
     case "$OS_TYPE" in
       Linux*)
-        sudo apt update
+        sudo apt update >> "$LOG_FILE" 2>&1
         if [ $? -ne 0 ]; then
           handle_error "Failed to update package lists."
         fi
-        sudo apt install -y unzip
+        sudo apt install -y unzip >> "$LOG_FILE" 2>&1
         if [ $? -eq 0 ]; then
           log "INFO" "'unzip' installed successfully."
         else
@@ -286,17 +287,17 @@ configure_aws_profile() {
   fi
 
   # Configure AWS CLI profile using values from .env
-  aws configure set aws_access_key_id "$aws_access_key_id" --profile "$profile_name"
+  aws configure set aws_access_key_id "$aws_access_key_id" --profile "$profile_name" >> "$LOG_FILE" 2>&1
   if [ $? -ne 0 ]; then
     handle_error "Failed to set AWS_ACCESS_KEY_ID for profile '$profile_name'."
   fi
 
-  aws configure set aws_secret_access_key "$aws_secret_access_key" --profile "$profile_name"
+  aws configure set aws_secret_access_key "$aws_secret_access_key" --profile "$profile_name" >> "$LOG_FILE" 2>&1
   if [ $? -ne 0 ]; then
     handle_error "Failed to set AWS_SECRET_ACCESS_KEY for profile '$profile_name'."
   fi
 
-  aws configure set region "$aws_region" --profile "$profile_name"
+  aws configure set region "$aws_region" --profile "$profile_name" >> "$LOG_FILE" 2>&1
   if [ $? -ne 0 ]; then
     handle_error "Failed to set AWS_REGION for profile '$profile_name'."
   fi
@@ -329,7 +330,7 @@ secure_cleanup() {
 }
 
 # ----------------------------------------
-# New Function: Model Selection
+# Function: Model Selection
 # ----------------------------------------
 select_model() {
   echo "----------------------------------------"
@@ -392,13 +393,12 @@ select_model() {
   done
 }
 
+# ----------------------------------------
 # Main Execution Flow
+# ----------------------------------------
 
 # Check internet connectivity
 check_internet
-
-# **Removed:** Uninstall AWS CLI Version 1 if installed via pip
-# The `uninstall_awscli_pip` function and its invocation have been removed.
 
 # Load environment variables from the .env file in the Execution Directory
 if [ -f "$EXECUTION_DIR/.env" ]; then
@@ -415,7 +415,7 @@ else
 fi
 
 # ----------------------------------------
-# New Step: Model Selection
+# Step: Model Selection
 # ----------------------------------------
 select_model
 
@@ -473,7 +473,7 @@ if [ -n "$PYTHON_CMD" ]; then
     case "$OS_TYPE" in
       Linux*|Darwin*)
         log "INFO" "Creating Python virtual environment for Unix..."
-        "$PYTHON_CMD" -m venv my_venv
+        "$PYTHON_CMD" -m venv my_venv >> "$LOG_FILE" 2>&1
         if [ $? -eq 0 ]; then
           source my_venv/bin/activate
           log "INFO" "Virtual environment 'my_venv' activated."
@@ -483,7 +483,7 @@ if [ -n "$PYTHON_CMD" ]; then
         ;;
       WINDOWS*|CYGWIN*|MINGW*|MSYS*)
         log "INFO" "Creating Python virtual environment for Windows..."
-        "$PYTHON_CMD" -m venv my_venv
+        "$PYTHON_CMD" -m venv my_venv >> "$LOG_FILE" 2>&1
         if [ $? -eq 0 ]; then
           source my_venv/Scripts/activate
           log "INFO" "Virtual environment 'my_venv' activated."
@@ -499,7 +499,7 @@ fi
 
 # Install required AWS SDK libraries and other dependencies
 log "INFO" "Installing required Python packages..."
-pip install --disable-pip-version-check boto3 python-dotenv
+pip install --disable-pip-version-check boto3 python-dotenv >> "$LOG_FILE" 2>&1
 if [ $? -eq 0 ]; then
   log "INFO" "Python packages installed successfully."
 else
@@ -507,7 +507,7 @@ else
 fi
 
 # Confirm installation
-pip list --disable-pip-version-check | grep "boto3\|python-dotenv"
+pip list --disable-pip-version-check | grep "boto3\|python-dotenv" >> "$LOG_FILE" 2>&1
 if [ $? -eq 0 ]; then
   log "INFO" "Confirmed installation of boto3 and python-dotenv."
 else
@@ -522,7 +522,7 @@ configure_aws_profile "$profile_name"
 # Ensure bedrock.py is present; if not, download it
 if [ ! -f "bedrock.py" ]; then
   log "INFO" "bedrock.py not found. Downloading from repository..."
-  curl -sL "https://raw.githubusercontent.com/GDP-ADMIN/codehub/main/aws-ai/bedrock.py" -o "bedrock.py"
+  curl -sL "https://raw.githubusercontent.com/GDP-ADMIN/codehub/main/aws-ai/bedrock.py" -o "bedrock.py" >> "$LOG_FILE" 2>&1
   if [ $? -eq 0 ]; then
     log "INFO" "bedrock.py downloaded successfully."
   else
@@ -538,15 +538,18 @@ if [ -f "bedrock.py" ]; then
   log "INFO" "Running bedrock.py script..."
 
   # Execute bedrock.py, capture stdout (model response), and log all errors
-  MODEL_RESPONSE=$("$PYTHON_CMD" bedrock.py)
+  MODEL_RESPONSE=$("$PYTHON_CMD" bedrock.py 2>> "$LOG_FILE")
+  SCRIPT_EXIT_CODE=$?
 
   # Check if the Python script executed successfully
-  if [ $? -eq 0 ]; then
-    # Print the model response to the terminal by redirecting to /dev/tty
-    echo "$MODEL_RESPONSE" > /dev/tty
+  if [ $SCRIPT_EXIT_CODE -eq 0 ]; then
+    # Print the model response to the terminal
+    echo -e "\nModel ID: $MODEL_ID"
+    echo "Prompt: Siapa presiden ke-4 Indonesia?"
+    echo -e "Response: $MODEL_RESPONSE\n"
     log "INFO" "bedrock.py executed successfully."
   else
-    handle_error "bedrock.py encountered an error during execution."
+    handle_error "bedrock.py encountered an error during execution. Check the log for details."
   fi
 else
   handle_error "bedrock.py script not found in the execution directory."
@@ -560,9 +563,9 @@ else
   log "INFO" "No virtual environment to deactivate."
 fi
 
-# Print completion messages to the terminal by redirecting to /dev/tty
-echo "AWS environment setup and bedrock.py script execution complete." > /dev/tty
-echo "Check 'setup.log' in '$EXECUTION_DIR' for detailed logs." > /dev/tty
+# Print completion messages to the terminal
+echo "AWS environment setup and bedrock.py script execution complete."
+echo "Check 'setup.log' in '$EXECUTION_DIR' for detailed logs."
 
 # Log completion messages
 log "INFO" "AWS environment setup and bedrock.py script execution complete."
