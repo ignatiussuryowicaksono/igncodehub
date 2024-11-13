@@ -385,8 +385,8 @@ select_model() {
     export MODEL_ID="$model_id"
 
     # Confirmation message to the user
-    echo "Selected Model:"
-    echo "$provider - $model_name (Version: $version)"
+    echo "----------------------------------------------------------------"
+    echo "Selected Model: $provider - $model_name (Version: $version)"
     log "INFO" "MODEL_ID set to: $MODEL_ID"
 
     break
@@ -544,8 +544,6 @@ if [ -f "bedrock.py" ]; then
   # Check if the Python script executed successfully
   if [ $SCRIPT_EXIT_CODE -eq 0 ]; then
     # Print the model response to the terminal
-    echo -e "\nModel ID: $MODEL_ID"
-    echo "Prompt: Siapa presiden ke-4 Indonesia?"
     echo -e "Response: $MODEL_RESPONSE\n"
     log "INFO" "bedrock.py executed successfully."
   else
