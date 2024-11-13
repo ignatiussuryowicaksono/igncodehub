@@ -336,7 +336,7 @@ select_model() {
   echo "Choose the model to deploy:"
   echo "----------------------------------------"
 
-  # Define the list of available models
+  # Define the list of available models with their IDs
   declare -A models
   models=(
     [1]="Amazon|Titan Text G1 - Express|1.x|amazon.titan-text-express-v1"
@@ -352,8 +352,11 @@ select_model() {
     [11]="Mistral AI|Mistral Large|1.x|mistral.mistral-large-2402-v1:0"
   )
 
-  # Display the models
-  for key in "${!models[@]}"; do
+  # Define the desired display order of model IDs
+  display_order=(1 2 3 4 5 6 7 8 9 10 11)
+
+  # Display the models in the specified order
+  for key in "${display_order[@]}"; do
     IFS='|' read -r provider model_name version model_id <<< "${models[$key]}"
     echo "$key. $provider - $model_name (Version: $version)"
   done
@@ -368,8 +371,8 @@ select_model() {
       continue
     fi
 
-    # Check if the number is within the range
-    if [ -z "${models[$model_choice]}" ]; then
+    # Check if the number is within the valid model IDs
+    if [[ ! " ${display_order[@]} " =~ " ${model_choice} " ]]; then
       echo "Invalid choice. Please select a valid number from the list."
       continue
     fi
