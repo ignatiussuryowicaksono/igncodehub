@@ -352,11 +352,8 @@ select_model() {
     [11]="Mistral AI|Mistral Large|1.x|mistral.mistral-large-2402-v1:0"
   )
 
-  # Define the desired display order of model IDs
-  display_order=(1 2 3 4 5 6 7 8 9 10 11)
-
-  # Display the models in the specified order
-  for key in "${display_order[@]}"; do
+  # Display the models in order 1 through 11
+  for key in {1..11}; do
     IFS='|' read -r provider model_name version model_id <<< "${models[$key]}"
     echo "$key. $provider - $model_name (Version: $version)"
   done
@@ -372,12 +369,12 @@ select_model() {
     fi
 
     # Check if the number is within the valid model IDs
-    if [[ ! " ${display_order[@]} " =~ " ${model_choice} " ]]; then
+    if [[ ! " ${!models[@]} " =~ " ${model_choice} " ]]; then
       echo "Invalid choice. Please select a valid number from the list."
       continue
     fi
 
-    # Extract the MODEL_ID
+    # Extract the MODEL_ID and model details
     selected_model="${models[$model_choice]}"
     IFS='|' read -r provider model_name version model_id <<< "$selected_model"
     log "INFO" "Selected Model: $provider - $model_name (Version: $version)"
@@ -387,7 +384,8 @@ select_model() {
     export MODEL_ID="$model_id"
 
     # Confirmation message to the user
-    echo "You have selected: $provider - $model_name (Version: $version)"
+    echo "Selected Model:"
+    echo "$provider - $model_name (Version: $version)"
     log "INFO" "MODEL_ID set to: $MODEL_ID"
 
     break
