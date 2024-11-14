@@ -1,7 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Version Script Information
-VERSION="1.0.6"
+VERSION="1.0.8"  # Incremented version
 
 # Capture the directory where the script was invoked
 EXECUTION_DIR="$(pwd)"
@@ -22,7 +22,7 @@ log() {
 handle_error() {
   log "ERROR" "$1"
   echo "ERROR: $1" >&2
-  exit 1
+  exit "${2:-1}"  # Allow custom exit codes
 }
 
 # Function to check internet connectivity
@@ -30,7 +30,7 @@ check_internet() {
   if ping -c 1 google.com &>/dev/null; then
     log "INFO" "Internet connectivity verified."
   else
-    handle_error "No internet connection. Please check your network settings."
+    handle_error "No internet connection. Please check your network settings." 2
   fi
 }
 
@@ -67,7 +67,7 @@ check_python_installed() {
       fi
       ;;
     *)
-      handle_error "Unsupported OS: $OS_TYPE."
+      handle_error "Unsupported OS: $OS_TYPE." 3
       ;;
   esac
 }
@@ -78,16 +78,16 @@ install_python3_venv() {
   if [[ "$(uname -s)" == "Linux" ]]; then
     sudo apt update >> "$LOG_FILE" 2>&1
     if [ $? -ne 0 ]; then
-      handle_error "Failed to update package lists."
+      handle_error "Failed to update package lists." 4
     fi
     sudo apt install -y python3 python3-venv >> "$LOG_FILE" 2>&1
     if [ $? -eq 0 ]; then
       log "INFO" "Successfully installed python3 and python3-venv."
     else
-      handle_error "Failed to install python3 or python3-venv."
+      handle_error "Failed to install python3 or python3-venv." 5
     fi
   else
-    handle_error "install_python3_venv is only supported on Linux."
+    handle_error "install_python3_venv is only supported on Linux." 6
   fi
 }
 
@@ -98,13 +98,13 @@ install_python_windows() {
   # Set Execution Policy to allow script execution
   powershell -Command "Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force" >> "$LOG_FILE" 2>&1
   if [ $? -ne 0 ]; then
-    handle_error "Failed to set PowerShell execution policy."
+    handle_error "Failed to set PowerShell execution policy." 7
   fi
 
   # Download the PowerShell installer script
-  powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/GDP-ADMIN/codehub/refs/heads/main/devsecops/install_python.ps1' -OutFile 'install_python.ps1'" >> "$LOG_FILE" 2>&1
+  powershell -Command "Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/GDP-ADMIN/codehub/main/devsecops/install_python.ps1' -OutFile 'install_python.ps1'" >> "$LOG_FILE" 2>&1
   if [ $? -ne 0 ]; then
-    handle_error "Failed to download install_python.ps1."
+    handle_error "Failed to download install_python.ps1." 8
   fi
   log "INFO" "install_python.ps1 downloaded successfully."
 
@@ -114,7 +114,7 @@ install_python_windows() {
     log "INFO" "Python installed successfully via PowerShell."
     rm -f install_python.ps1
   else
-    handle_error "Failed to install Python via PowerShell."
+    handle_error "Failed to install Python via PowerShell." 9
     rm -f install_python.ps1
     return 1
   fi
@@ -124,103 +124,78 @@ install_python_windows() {
     log "INFO" "Python is now installed on Windows."
     return 0
   else
-    handle_error "Python installation verification failed."
+    handle_error "Python installation verification failed." 10
     return 1
   fi
 }
 
-# Function to install AWS CLI if not already installed
-install_aws_cli() {
-  OS_TYPE="$(uname -s 2>/dev/null || echo "Windows")"
-  if ! command -v aws &>/dev/null; then
-    log "INFO" "AWS CLI not found. Installing AWS CLI..."
+# Function to ensure 'curl' is installed
+check_curl_installed() {
+  if command -v curl &>/dev/null; then
+    log "INFO" "'curl' is already installed."
+  else
+    log "INFO" "'curl' not found. Installing 'curl'..."
+    OS_TYPE="$(uname -s 2>/dev/null || echo "Windows")"
     case "$OS_TYPE" in
-      WINDOWS*|CYGWIN*|MINGW*|MSYS*)
-        # Define AWS CLI installer URL
-        AWS_CLI_INSTALLER_URL="https://awscli.amazonaws.com/AWSCLIV2.msi"
-        AWS_CLI_INSTALLER="AWSCLIV2.msi"
-
-        # Download AWS CLI installer using PowerShell
-        powershell.exe -Command "Invoke-WebRequest -Uri '$AWS_CLI_INSTALLER_URL' -OutFile '$AWS_CLI_INSTALLER'" >> "$LOG_FILE" 2>&1
-        if [ $? -ne 0 ]; then
-          handle_error "Failed to download AWS CLI installer."
-        fi
-        log "INFO" "AWS CLI installer downloaded successfully."
-
-        # Install AWS CLI silently
-        powershell.exe -Command "Start-Process msiexec.exe -ArgumentList '/i $AWS_CLI_INSTALLER /quiet' -Wait" >> "$LOG_FILE" 2>&1
+      Linux*)
+        sudo apt update >> "$LOG_FILE" 2>&1
+        sudo apt install -y curl >> "$LOG_FILE" 2>&1
         if [ $? -eq 0 ]; then
-          log "INFO" "AWS CLI installed successfully via PowerShell."
+          log "INFO" "'curl' installed successfully."
         else
-          handle_error "Failed to install AWS CLI via PowerShell."
-          rm -f "$AWS_CLI_INSTALLER"
-        fi
-
-        # Clean up installer
-        rm -f "$AWS_CLI_INSTALLER"
-
-        # Re-check AWS CLI installation and verify version
-        if command -v aws &>/dev/null; then
-          AWS_CLI_VERSION=$(aws --version | awk '{print $1}' | cut -d/ -f2)
-          log "INFO" "AWS CLI version $AWS_CLI_VERSION installed successfully on Windows."
-          if [[ "$AWS_CLI_VERSION" =~ ^2\..* ]]; then
-            log "INFO" "Confirmed: AWS CLI Version 2 is installed."
-          else
-            handle_error "AWS CLI Version 2 is not installed. Current version: $AWS_CLI_VERSION."
-          fi
-        else
-          handle_error "AWS CLI installation verification failed."
+          handle_error "Failed to install 'curl' on Linux." 11
         fi
         ;;
-      Linux*|Darwin*)
-        # Define AWS CLI installer URL
-        AWS_CLI_INSTALLER_URL="https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip"
-        AWS_CLI_INSTALLER_ZIP="awscliv2.zip"
-
-        # Download AWS CLI installer
-        curl -sL "$AWS_CLI_INSTALLER_URL" -o "$AWS_CLI_INSTALLER_ZIP" >> "$LOG_FILE" 2>&1
-        if [ $? -ne 0 ]; then
-          handle_error "Failed to download AWS CLI."
-        fi
-        log "INFO" "AWS CLI installer downloaded successfully."
-
-        # Unzip the installer
-        unzip "$AWS_CLI_INSTALLER_ZIP" >> "$LOG_FILE" 2>&1
-        if [ $? -ne 0 ]; then
-          handle_error "Failed to unzip AWS CLI installer."
-        fi
-
-        # Install AWS CLI
-        sudo ./aws/install >> "$LOG_FILE" 2>&1
+      Darwin*)
+        brew install curl >> "$LOG_FILE" 2>&1
         if [ $? -eq 0 ]; then
-          log "INFO" "AWS CLI installed successfully."
+          log "INFO" "'curl' installed successfully via Homebrew."
         else
-          handle_error "Failed to install AWS CLI."
+          handle_error "Failed to install 'curl' on macOS." 12
         fi
-
-        # Verify AWS CLI version
-        AWS_CLI_VERSION=$(aws --version | awk '{print $1}' | cut -d/ -f2)
-        log "INFO" "AWS CLI version $AWS_CLI_VERSION installed successfully on Linux."
-        if [[ "$AWS_CLI_VERSION" =~ ^2\..* ]]; then
-          log "INFO" "Confirmed: AWS CLI Version 2 is installed."
-        else
-          handle_error "AWS CLI Version 2 is not installed. Current version: $AWS_CLI_VERSION."
-        fi
-
-        # Clean up installer
-        rm -rf "$AWS_CLI_INSTALLER_ZIP" aws
+        ;;
+      WINDOWS*|CYGWIN*|MINGW*|MSYS*)
+        log "INFO" "'curl' should be available on modern Windows systems."
         ;;
       *)
-        handle_error "Unsupported OS: $OS_TYPE."
+        handle_error "Unsupported OS for 'curl' installation: $OS_TYPE." 13
         ;;
     esac
-  else
+  fi
+}
+
+# Function to install AWS CLI Version 1 if not already installed
+install_aws_cli_v1() {
+  if command -v aws &>/dev/null; then
     AWS_CLI_VERSION=$(aws --version | awk '{print $1}' | cut -d/ -f2)
     log "INFO" "AWS CLI is already installed. Version: $AWS_CLI_VERSION."
-    if [[ "$AWS_CLI_VERSION" =~ ^2\..* ]]; then
-      log "INFO" "Confirmed: AWS CLI Version 2 is installed."
+  else
+    log "INFO" "AWS CLI not found. Proceeding to install AWS CLI Version 1 via pip."
+
+    if [ -n "$PYTHON_CMD" ]; then
+      # Upgrade pip to ensure latest version
+      "$PYTHON_CMD" -m pip install --upgrade pip >> "$LOG_FILE" 2>&1
+      if [ $? -ne 0 ]; then
+        handle_error "Failed to upgrade pip." 14
+      fi
+
+      # Install AWS CLI Version 1
+      "$PYTHON_CMD" -m pip install --upgrade awscli >> "$LOG_FILE" 2>&1
+      if [ $? -eq 0 ]; then
+        log "INFO" "AWS CLI Version 1 installed successfully via pip."
+      else
+        handle_error "Failed to install AWS CLI Version 1 via pip." 15
+      fi
     else
-      handle_error "AWS CLI Version 2 is not installed. Current version: $AWS_CLI_VERSION."
+      handle_error "Python command not found. Cannot install AWS CLI." 16
+    fi
+
+    # Verify AWS CLI installation
+    if command -v aws &>/dev/null; then
+      AWS_CLI_VERSION=$(aws --version | awk '{print $1}' | cut -d/ -f2)
+      log "INFO" "AWS CLI Version $AWS_CLI_VERSION installed successfully."
+    else
+      handle_error "AWS CLI installation verification failed." 17
     fi
   fi
 }
@@ -235,13 +210,13 @@ install_unzip() {
       Linux*)
         sudo apt update >> "$LOG_FILE" 2>&1
         if [ $? -ne 0 ]; then
-          handle_error "Failed to update package lists."
+          handle_error "Failed to update package lists." 18
         fi
         sudo apt install -y unzip >> "$LOG_FILE" 2>&1
         if [ $? -eq 0 ]; then
           log "INFO" "'unzip' installed successfully."
         else
-          handle_error "Failed to install 'unzip' on Linux."
+          handle_error "Failed to install 'unzip' on Linux." 19
         fi
         ;;
       Darwin*)
@@ -252,7 +227,7 @@ install_unzip() {
         log "INFO" "'unzip' functionality is handled via PowerShell's Expand-Archive."
         ;;
       *)
-        handle_error "Unsupported OS for 'unzip' installation: $OS_TYPE."
+        handle_error "Unsupported OS for 'unzip' installation: $OS_TYPE." 20
         ;;
     esac
   else
@@ -265,7 +240,7 @@ validate_env_vars() {
   local required_vars=("AWS_ACCESS_KEY_ID" "AWS_SECRET_ACCESS_KEY" "AWS_REGION")
   for var in "${required_vars[@]}"; do
     if [ -z "${!var}" ]; then
-      handle_error "Environment variable '$var' is not set."
+      handle_error "Environment variable '$var' is not set." 21
     else
       log "INFO" "$var is set."
     fi
@@ -279,8 +254,8 @@ configure_aws_profile() {
   local aws_secret_access_key=$AWS_SECRET_ACCESS_KEY
   local aws_region=$AWS_REGION
 
-  # Check if the profile already exists
-  if aws configure list-profiles | grep -q "^${profile_name}$"; then
+  # Check if the profile already exists in AWS CLI v1
+  if grep -q "^\[${profile_name}\]" ~/.aws/config; then
     log "INFO" "AWS profile '$profile_name' already exists. Skipping configuration."
     export AWS_PROFILE="$profile_name"
     return 0
@@ -289,17 +264,17 @@ configure_aws_profile() {
   # Configure AWS CLI profile using values from .env
   aws configure set aws_access_key_id "$aws_access_key_id" --profile "$profile_name" >> "$LOG_FILE" 2>&1
   if [ $? -ne 0 ]; then
-    handle_error "Failed to set AWS_ACCESS_KEY_ID for profile '$profile_name'."
+    handle_error "Failed to set AWS_ACCESS_KEY_ID for profile '$profile_name'." 22
   fi
 
   aws configure set aws_secret_access_key "$aws_secret_access_key" --profile "$profile_name" >> "$LOG_FILE" 2>&1
   if [ $? -ne 0 ]; then
-    handle_error "Failed to set AWS_SECRET_ACCESS_KEY for profile '$profile_name'."
+    handle_error "Failed to set AWS_SECRET_ACCESS_KEY for profile '$profile_name'." 23
   fi
 
   aws configure set region "$aws_region" --profile "$profile_name" >> "$LOG_FILE" 2>&1
   if [ $? -ne 0 ]; then
-    handle_error "Failed to set AWS_REGION for profile '$profile_name'."
+    handle_error "Failed to set AWS_REGION for profile '$profile_name'." 24
   fi
 
   # Export the AWS_PROFILE environment variable
@@ -311,22 +286,29 @@ configure_aws_profile() {
 verify_aws_cli_version() {
   if command -v aws &>/dev/null; then
     AWS_CLI_VERSION=$(aws --version | awk '{print $1}' | cut -d/ -f2)
-    if [[ "$AWS_CLI_VERSION" =~ ^2\..* ]]; then
-      log "INFO" "AWS CLI Version 2 is correctly installed: $AWS_CLI_VERSION."
-    else
-      handle_error "AWS CLI Version 2 is required. Current version: $AWS_CLI_VERSION."
-    fi
+    log "INFO" "AWS CLI Version: $AWS_CLI_VERSION."
   else
-    handle_error "AWS CLI is not installed."
+    handle_error "AWS CLI is not installed." 25
   fi
 }
 
 # Function to securely clean up temporary files
 secure_cleanup() {
-  rm -f install_python.ps1
-  rm -f "$AWS_CLI_INSTALLER"
-  rm -f awscliv2.zip
-  rm -rf aws
+  # List of temporary files to remove
+  local temp_files=("install_python.ps1" "$AWS_CLI_INSTALLER" "$AWS_CLI_INSTALLER_ZIP" "awscliv2.zip" "AWSCLIV2_v2.msi")
+  
+  for file in "${temp_files[@]}"; do
+    if [ -f "$file" ]; then
+      rm -f "$file"
+      log "INFO" "Removed temporary file: $file."
+    fi
+  done
+  
+  # Remove 'aws' directory if it exists
+  if [ -d "aws" ]; then
+    rm -rf aws
+    log "INFO" "Removed temporary directory: aws."
+  fi
 }
 
 # ----------------------------------------
@@ -370,7 +352,7 @@ select_model() {
     fi
 
     # Check if the number is within the valid model IDs
-    if [[ ! " ${!models[@]} " =~ " ${model_choice} " ]]; then
+    if [[ -z "${models[$model_choice]}" ]]; then
       echo "Invalid choice. Please select a valid number from the list."
       continue
     fi
@@ -400,6 +382,9 @@ select_model() {
 # Check internet connectivity
 check_internet
 
+# Check if 'curl' is installed
+check_curl_installed
+
 # Load environment variables from the .env file in the Execution Directory
 if [ -f "$EXECUTION_DIR/.env" ]; then
   # Use 'export' and 'source' to load the .env file
@@ -411,7 +396,7 @@ if [ -f "$EXECUTION_DIR/.env" ]; then
   # Validate environment variables
   validate_env_vars
 else
-  handle_error ".env file not found in '$EXECUTION_DIR'. Please ensure it exists in the directory where you run the script."
+  handle_error ".env file not found in '$EXECUTION_DIR'. Please ensure it exists in the directory where you run the script." 26
 fi
 
 # ----------------------------------------
@@ -431,8 +416,8 @@ case "$OS_TYPE" in
     fi
     # Install 'unzip' before installing AWS CLI
     install_unzip
-    # Check and install AWS CLI
-    install_aws_cli
+    # Check and install AWS CLI Version 1
+    install_aws_cli_v1
     # Verify AWS CLI version
     verify_aws_cli_version
     ;;
@@ -445,13 +430,13 @@ case "$OS_TYPE" in
     fi
     # Install 'unzip' on Windows if needed
     install_unzip
-    # Check and install AWS CLI
-    install_aws_cli
+    # Check and install AWS CLI Version 1
+    install_aws_cli_v1
     # Verify AWS CLI version
     verify_aws_cli_version
     ;;
   *)
-    handle_error "Unsupported OS: $OS_TYPE."
+    handle_error "Unsupported OS: $OS_TYPE." 27
     ;;
 esac
 
@@ -478,7 +463,7 @@ if [ -n "$PYTHON_CMD" ]; then
           source my_venv/bin/activate
           log "INFO" "Virtual environment 'my_venv' activated."
         else
-          handle_error "Failed to create virtual environment."
+          handle_error "Failed to create virtual environment." 28
         fi
         ;;
       WINDOWS*|CYGWIN*|MINGW*|MSYS*)
@@ -488,13 +473,13 @@ if [ -n "$PYTHON_CMD" ]; then
           source my_venv/Scripts/activate
           log "INFO" "Virtual environment 'my_venv' activated."
         else
-          handle_error "Failed to create virtual environment."
+          handle_error "Failed to create virtual environment." 29
         fi
         ;;
     esac
   fi
 else
-  handle_error "Python command not found. Cannot create virtual environment."
+  handle_error "Python command not found. Cannot create virtual environment." 30
 fi
 
 # Install required AWS SDK libraries and other dependencies
@@ -503,7 +488,7 @@ pip install --disable-pip-version-check boto3 python-dotenv >> "$LOG_FILE" 2>&1
 if [ $? -eq 0 ]; then
   log "INFO" "Python packages installed successfully."
 else
-  handle_error "Failed to install some Python packages."
+  handle_error "Failed to install some Python packages." 31
 fi
 
 # Confirm installation
@@ -511,7 +496,7 @@ pip list --disable-pip-version-check | grep "boto3\|python-dotenv" >> "$LOG_FILE
 if [ $? -eq 0 ]; then
   log "INFO" "Confirmed installation of boto3 and python-dotenv."
 else
-  handle_error "Some required Python packages are not installed."
+  handle_error "Some required Python packages are not installed." 32
 fi
 
 # Store AWS profile info (profile name)
@@ -526,31 +511,42 @@ if [ ! -f "bedrock.py" ]; then
   if [ $? -eq 0 ]; then
     log "INFO" "bedrock.py downloaded successfully."
   else
-    handle_error "Failed to download bedrock.py."
+    handle_error "Failed to download bedrock.py." 33
     exit 1
   fi
 else
   log "INFO" "bedrock.py is already present."
 fi
 
+# ----------------------------------------
 # Run the bedrock.py script and capture the model response
+# ----------------------------------------
+
 if [ -f "bedrock.py" ]; then
   log "INFO" "Running bedrock.py script..."
 
-  # Execute bedrock.py, capture stdout (model response), and log all errors
-  MODEL_RESPONSE=$("$PYTHON_CMD" bedrock.py 2>> "$LOG_FILE")
+  # Suppress AWS CLI version messages by setting environment variables
+  export AWS_PAGER=""
+  export AWS_LOG_LEVEL=error
+
+  # Execute bedrock.py:
+  # - Redirect stderr to the log file
+  # - Capture only the model response for terminal output
+  MODEL_RESPONSE=$(
+    "$PYTHON_CMD" bedrock.py 2>> "$LOG_FILE"
+  )
   SCRIPT_EXIT_CODE=$?
 
   # Check if the Python script executed successfully
   if [ $SCRIPT_EXIT_CODE -eq 0 ]; then
     # Print the model response to the terminal
-    echo -e "Response: $MODEL_RESPONSE\n"
+    echo -e "$MODEL_RESPONSE\n"
     log "INFO" "bedrock.py executed successfully."
   else
-    handle_error "bedrock.py encountered an error during execution. Check the log for details."
+    handle_error "bedrock.py encountered an error during execution. Check the log for details." 34
   fi
 else
-  handle_error "bedrock.py script not found in the execution directory."
+  handle_error "bedrock.py script not found in the execution directory." 35
 fi
 
 # Deactivate the virtual environment if it's activated
